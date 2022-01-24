@@ -223,6 +223,7 @@ exports.Extractor = class Extractor {
     this.items = {};
     this.tokens = this._getTokens();
     this.filterRegexp = this.createExtractRegexps(this.tokens);
+    this.filterRegexpWithoutDelimiters = this.createExtractRegexps(this.tokens, false);
     this.unwrapRegexps = Extractor.createUnwrapRegexps(this.tokens);
   }
 
@@ -249,9 +250,9 @@ exports.Extractor = class Extractor {
     };
   }
 
-  createExtractRegexps(tokens) {
-    const start = this.options.startDelimiter === '' ? '' : tokens.start;
-    const end = this.options.endDelimiter === '' ? '' : tokens.end;
+  createExtractRegexps(tokens, withDelimiters = true) {
+    const start = (this.options.startDelimiter === '' || !withDelimiters) ? '' : tokens.start;
+    const end = (this.options.endDelimiter === '' || !withDelimiters) ? '' : tokens.end;
 
     return new RegExp(`${start}${tokens.prefix}[^'"]*${tokens.startOrEndQuotes}?${tokens.body}\\1${tokens.spacesOrPipeChar}(${tokens.filters})\\s*${end}`, 'g');
   }
@@ -504,7 +505,7 @@ exports.Extractor = class Extractor {
     if (this._hasTranslationToken(node)) {
       const text = this._getNodeHTML(node);
 
-      if (text.length !== 0) {
+      if (text.length !== 0 && !text.includes(this.options.startDelimiter)) {
         return [new exports.NodeTranslationInfo(node, text, reference, this.options.attributes)];
       }
     }
@@ -513,7 +514,9 @@ exports.Extractor = class Extractor {
     return this.getAttrsAndDatas(node)
       .reduce((tokensFromFilters, item) => {
         try {
-          this._getAllMatches(item.text, [], this.filterRegexp)// .map(_logMapper)
+          // if attr, always use without delimiters
+          const filterRegexp = item.type === 'attr' ? this.filterRegexpWithoutDelimiters : this.filterRegexp
+          this._getAllMatches(item.text, [], filterRegexp)// .map(_logMapper)
             .filter((text) => text.length !== 0)
             .forEach((text) => {
               tokensFromFilters.push(
